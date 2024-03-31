@@ -15,7 +15,7 @@ app.use('/',userRoute);
 
 //connessione al database
 
-mongoose.connect(uri='mongodb+srv://salvatoredimaria92:SdrbaQyLiRWYjUMw@databasesalvo.pbepejt.mongodb.net/')
+mongoose.connect(process.env.MONGODB_URL)
 
 const db =mongoose.connection;
 db.on('error',console.error.bind(console,'Db connection error'));

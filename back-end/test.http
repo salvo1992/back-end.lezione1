@@ -1,0 +1,42 @@
+GET http://localhost:9099/getUser
+
+####
+
+POST http://localhost:9099/createUser
+Content-Type: application/json
+
+{
+   "firstName": "utente17",
+   "lastName": "dibo",
+   "email": "carlo@dibo.com",
+   "password": "ciao1",
+   "age":45
+}
+
+####
+
+GET http://localhost:9099/getUser/65fc86e73955c26170600e0e
+
+####
+
+PATCH http://localhost:9099/updateUser/660021d66cf6d8d33009cdd3
+Content-Type: application/json
+
+{
+   "lastName": "micio"
+}
+
+####
+
+DELETE http://localhost:9099/deleteUser/65fc92ff88ba9fbef6567b13
+
+####
+GET http://localhost:9099/getUser/byName/salvo
+
+####
+
+GET http://localhost:9099/getUsers?page=2
+
+####
+
+GET http://localhost:9099/getUsers
