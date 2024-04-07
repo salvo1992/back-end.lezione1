@@ -1,196 +1,198 @@
-const express= require('express');
-const router= express.Router();
-const UserModel=require('../models/user');
+const express = require('express');
+const router = express.Router();
+const UsersModel = require('../models/user');
+const validateUserBody = require('../middlewares/validateUserBody')
+const verified = require('../middlewares/verifyToken')
+const bcrypt = require('bcrypt')
 
-router.get('/getUser',async(request, response)=>{
-    try{
-        const user=await UserModel.find();
-        response
-        .status(200)
-        .send(user)
-        
- } catch(e){
-       response
-       .status(500)
-       .send({
-        statuscode:500,
-        message:'internal server error'
-       })
-    }
-})
-
-
-router.get('/getUser/:id',async(request, response)=>{
-    const{id}=request.params;
-
- 
+router.get('/getUsers', verified, async (request, response) => {
+    const { page = 1, pageSize = 5 } = request.query;
     try {
-        const user=await UserModel.findById(id);
+        const users = await UsersModel.find()
+            .limit(pageSize)
+            .skip((page - 1) * pageSize)
 
-        if(!user){    
-         return response
-         .status(404)
-         .send({
-             statuscode:404,
-             message:'the request user does not exist!'
-         })  
-        }
+        const totalUsers = await UsersModel.countDocuments();
 
-       response
-       .status(200)
-       .send(user) 
+        response
+            .status(200)
+            .send({
+                currentPage: +page,
+                totalPages: Math.ceil(totalUsers / pageSize),
+                users,
+            })
     } catch (e) {
         response
-        .status(500)
-        .send({
-            statuscode:500,
-            message:'internal server error'
-        })
+            .status(500)
+            .send({
+                statusCode: 500,
+                message: 'Internal server error'
+            })
     }
 })
 
-router.get('/getUser/byName/:query',async(request, response)=>{
-    const{query}=request.params;
+router.get('/getUsers/:id', async (request, response) => {
+    const { id } = request.params;
+
     try {
-        const user=await UserModel.find({
-            firstName:{
-                $regex:'.*'+ query +'.*',
-                $options:'i'
+        const user = await UsersModel.findById(id);
+
+        if (!user) {
+            return response
+                .status(404)
+                .send({
+                    statusCode: 404,
+                    message: 'The requested user does not exist!'
+                })
+        }
+
+        response
+            .status(200)
+            .send(user)
+    } catch (e) {
+        response
+            .status(500)
+            .send({
+                statusCode: 500,
+                message: 'Internal Server Error'
+            })
+    }
+})
+
+router.get('/getUsers/byName/:query', async (request, response) => {
+    const {query} = request.params
+    try {
+        const user = await UsersModel.find({
+            firstName: {
+                $regex: '.*' + query + '.*',
+                $options: 'i',
             }
         })
-        if(!user){
-            return response
-            .status(404)
-            .send({
-                statuscode:404,
-                message:'User not found with the given query!'
+        if (!user) {
+            return response.status(404).send({
+                statusCode: 404,
+                message: 'User not found with the given query'
             })
         }
-        response .status(200) .send(user);
+        response.status(200).send(user);
     } catch (e) {
         response
-        .status(500)
-        .send({
-            statuscode:500,
-            message:'internal server error'
-        })
+            .status(500)
+            .send({
+                statusCode: 500,
+                message: 'Internal Server Error'
+            })
     }
 })
 
+router.get('/getUsers/byAge/:age(\\d+)', async (request, response) => {
+    const {age} = request.params
 
-router.post('/createUser',async(request, response)=>{
-    const newUser= new UserModel({
+    try {
+        const userByAge = await UsersModel.find({
+            age: {
+                $eq: age,
+            }
+        })
+        response.status(200).send(userByAge)
+    } catch (e) {
+        response
+            .status(500)
+            .send({
+                statusCode: 500,
+                message: 'Internal Server Error'
+            })
+    }
+})
+
+router.post('/createUser', validateUserBody, async (request, response) => {
+
+    const salt = await bcrypt.genSalt(10)
+    const hashedPassword = await bcrypt.hash(request.body.password, salt)
+
+    const newUser = new UsersModel({
         firstName: request.body.firstName,
         lastName: request.body.lastName,
         email: request.body.email,
-        password:request.body.password,
-        age:Number(request.body.age)
-
+        password: hashedPassword,
+        age: Number(request.body.age)
     });
-    try{
-       const userToSave = await newUser.save();
-       response
-       .status(201)
-       .send({
-        statuscode:201,
-        payload:userToSave
-       }) 
-    }catch(e){
+
+    try {
+        const userToSave = await newUser.save();
         response
-        .status(500)
-        .send({
-            statuscode:500,
-            message:'internal server error'
-        })
+            .status(201)
+            .send({
+                statusCode: 201,
+                payload: userToSave
+            })
+    } catch (e) {
+        response
+            .status(500)
+            .send({
+                statusCode: 500,
+                message: 'Internal server error'
+            })
     }
 })
 
 router.patch('/updateUser/:id', async (request, response) => {
-    const { id } = request.params;
-    try {
-        // Verifica se l'utente esiste
-        const user = await UserModel.findById(id);
-        if (!user) {
-            return response.status(404).send(JSON.stringify({
-                statusCode: 404,
-                message: 'L\'utente richiesto non esiste!'
-            }));
-        }
+    const { id } = request.params
 
-        // Aggiorna l'utente
-        const updateData = request.body;
-        const option = { new: true };
-        const updatedUser = await UserModel.findByIdAndUpdate(id, updateData, option);
-
-        if (!updatedUser) {
-            return response.status(404).send(JSON.stringify({
-                statusCode: 404,
-                message: 'Impossibile trovare l\'utente da aggiornare.'
-            }));
-        }
-
-        // Rispondi con l'utente aggiornato
-        response.status(200).send(JSON.stringify(updatedUser));
-
-    } catch (error) {
-        // Gestione degli errori interni
-        console.error('Errore durante l\'aggiornamento dell\'utente:', error);
-        response.status(500).send(JSON.stringify({
-            statusCode: 500,
-            message: 'Si è verificato un errore interno del server.'
-        }));
-    }
-});
-
-
-router.delete('/deleteUser/:id',async(request, response)=>{
-    const {id} = request.params;
-    try {
-      const user = await UserModel.findByIdAndDelete(id);
-      if(!user){
+    const user = await UsersModel.findById(id);
+    if (!user) {
         return response
-   .status(404)
-   .send({
-        statuscode:404,
-        message:'the request user does not exist!'
-     })
+            .status(404)
+            .send({
+                statusCode: 404,
+                message: 'The requested user not exist!'
+            })
     }
-    response
-    .status(200)
-    .send('User with id ${id} successfully deleted')
-}catch (e) {
-    response 
-    .status(500)
-    .send({
-        statuscode:500,
-        message:'internal server error'
-      })
+
+    try {
+
+        const updatedData = request.body;
+        const options = { new: true };
+
+        const result = await UsersModel.findByIdAndUpdate(id, updatedData, options);
+
+        response
+            .status(200)
+            .send(result)
+    } catch (e) {
+        response
+            .status(500)
+            .send({
+                statusCode: 500,
+                message: 'Internal server error'
+            })
     }
 })
-   
-//pagination routes
 
-router.get('/getUsers', async (request, response) => {
-    const { page=1, pageSize=5} = request.query;
+router.delete('/deleteUser/:id', async (request, response) => {
+    const { id } = request.params;
     try {
-        const users = await UserModel.find()
-        .limit(pageSize)
-        .skip((page - 1) * pageSize)
-        .sort({age:-1})
-const totalUser =await UserModel.countDocuments();
+        const user = await UsersModel.findByIdAndDelete(id);
+        if (!user) {
+            return response
+                .status(404)
+                .send({
+                    statusCode: 404,
+                    message: 'The requested user not exist!'
+                })
+        }
 
-        response.status(200).send({
-            currentPage:+page,
-            totalPages:Math.ceil(totalUser/pageSize),
-            users,
-        });
+        response
+            .status(200)
+            .send(`User with id ${id} successfully removed`)
     } catch (e) {
-        response.status(500).send({
-            statuscode:500,
-            message:'internal server error'
-        })
+        response
+            .status(500)
+            .send({
+                statusCode: 500,
+                message: 'Internal server error'
+            })
     }
-});
+})
 
-
-module.exports=router;
+module.exports = router;
